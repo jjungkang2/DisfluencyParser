@@ -6,11 +6,9 @@ import torch
 import torch.nn as nn
 import torch.nn.init as init
 
-use_cuda = torch.cuda.is_available()
+use_cuda = False
 if use_cuda:
     torch_t = torch.cuda
-    def from_numpy(ndarray):
-        return torch.from_numpy(ndarray).pin_memory().cuda(async=True)
 else:
     print("Not using CUDA!")
     torch_t = torch
@@ -950,6 +948,7 @@ class NKChartParser(nn.Module):
             extra_content_annotations = self.project_elmo(elmo_annotations_packed)
         elif self.bert is not None:
             all_input_ids = np.zeros((len(sentences), self.bert_max_len), dtype=int)
+            all_input_ids = torch.tensor(all_input_ids).to(torch.int64) 
             all_input_mask = np.zeros((len(sentences), self.bert_max_len), dtype=int)
             all_word_start_mask = np.zeros((len(sentences), self.bert_max_len), dtype=int)
             all_word_end_mask = np.zeros((len(sentences), self.bert_max_len), dtype=int)
@@ -997,6 +996,7 @@ class NKChartParser(nn.Module):
                 word_end_mask.append(1)
 
                 input_ids = self.bert_tokenizer.convert_tokens_to_ids(tokens)
+                input_ids = torch.tensor(input_ids).to(torch.int64)
 
                 # The mask has 1 for real tokens and 0 for padding tokens. Only real
                 # tokens are attended to.

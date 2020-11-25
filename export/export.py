@@ -106,7 +106,7 @@ def make_elmo(chars_batched):
     dim_padded = tf.shape(lm['mask'])[:2]
     mask_flat = tf.reshape(lm['mask'], (-1,))
     dim_flat = tf.shape(mask_flat)[:1]
-    nonpad_ids = tf.to_int32(tf.where(mask_flat)[:,0])
+    nonpad_ids = tf.to_int64(tf.where(mask_flat)[:,0])
     word_reps_shape = tf.shape(word_representations_padded)
     word_representations_flat = tf.reshape(word_representations_padded, [-1, int(word_representations_padded.shape[-1])])
     word_representations = tf.gather(word_representations_flat, nonpad_ids)
