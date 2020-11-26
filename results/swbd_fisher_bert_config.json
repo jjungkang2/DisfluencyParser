@@ -13,7 +13,6 @@
   "d_model": 1024,
   "d_tag_hidden": 250,
   "default_label_weight": 0.69,
-  "elmo_dropout": 0.5,
   "embedding_dropout": 0.0,
   "epoch10_hurdle": 0.0,
   "epoch1_hurdle": 0.0,
@@ -46,10 +45,7 @@
   "tag_loss_scale": 5.0,
   "timing_dropout": 0.0,
   "use_bert": true,
-  "use_bert_only": false,
   "use_chars_concat": false,
-  "use_chars_lstm": false,
-  "use_elmo": false,
   "use_tags": false,
   "use_words": false,
   "word_emb_dropout": 0.4

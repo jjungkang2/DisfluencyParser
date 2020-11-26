@@ -19,16 +19,6 @@ def torch_load(load_path):
     else:
         return torch.load(load_path, map_location=lambda storage, location: storage)
 
-def format_elapsed(start_time):
-    elapsed_time = int(time.time() - start_time)
-    minutes, seconds = divmod(elapsed_time, 60)
-    hours, minutes = divmod(minutes, 60)
-    days, hours = divmod(hours, 24)
-    elapsed_string = "{}h{:02}m{:02}s".format(hours, minutes, seconds)
-    if days > 0:
-        elapsed_string = "{}d{}".format(days, elapsed_string)
-    return elapsed_string
-
 def make_hparams():
     return nkutil.HParams(
         max_len_train=0, # no length limit
@@ -39,7 +29,7 @@ def make_hparams():
         learning_rate=0.0008,
         learning_rate_warmup_steps=160,
         clip_grad_norm=0., #no clipping
-        step_decay=True, # note that disabling step decay is not implemented
+        step_decay=True,
         step_decay_factor=0.5,
         step_decay_patience=5,
         max_consecutive_decays=3, # establishes a termination criterion
@@ -63,20 +53,16 @@ def make_hparams():
 
         use_tags=False,
         use_words=False,
-        use_chars_lstm=False,
-        use_elmo=False,
         use_bert=False,
-        use_bert_only=False,
         predict_tags=False,
 
-        d_char_emb=32, # A larger value may be better for use_chars_lstm
+        d_char_emb=32,
 
         tag_emb_dropout=0.2,
         word_emb_dropout=0.4,
         morpho_emb_dropout=0.2,
         timing_dropout=0.0,
         char_lstm_input_dropout=0.2,
-        elmo_dropout=0.5, # Note that this semi-stacks with morpho_emb_dropout!
 
         bert_model="bert-base-uncased",
         bert_do_lower_case=True,
@@ -86,17 +72,10 @@ def make_hparams():
 #%%
 
 def run_parse(args):
-    '''
-    if args.output_path != '-' and os.path.exists(args.output_path):
-        print("Error: output file already exists:", args.output_path)
-        return
-    '''
     
     print("Loading model from {}...".format(args.model_path_base))
-    assert args.model_path_base.endswith(".pt"), "Only pytorch savefiles supported"
 
     info = torch_load(args.model_path_base)
-    assert 'hparams' in info['spec'], "Older savefiles not supported"
     parser = parse_nk.NKChartParser.from_spec(info['spec'], info['state_dict'])
 
     print("Parsing sentences...")
@@ -139,7 +118,7 @@ def main():
     hparams = make_hparams()
     subparser = subparsers.add_parser("parse")
     subparser.set_defaults(callback=run_parse)
-    subparser.add_argument("--model-path-base", required=True)
+    subparser.add_argument("--model-path-base", default="best_models/swbd_fisher_bert_Edev.0.9078.pt")
     subparser.add_argument("--input-path", default="best_models/raw_sentences.txt")
     subparser.add_argument("--output-path", default="best_models/parsed_sentences.txt")
     subparser.add_argument("--eval-batch-size", type=int, default=100)
