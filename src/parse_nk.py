@@ -343,6 +343,8 @@ class MultiHeadAttention(nn.Module):
 
         # Switch to padded representation, perform attention, then switch back
         q_padded, k_padded, v_padded, attn_mask, output_mask = self.pad_and_rearrange(q_s, k_s, v_s, batch_idxs)
+        attn_mask = attn_mask.to(torch.bool)
+        output_mask = output_mask.to(torch.bool)
 
         outputs_padded, attns_padded = self.attention(
             q_padded, k_padded, v_padded,
@@ -1018,7 +1020,7 @@ class NKChartParser(nn.Module):
             features = all_encoder_layers[-1]
 
             if self.encoder is not None:
-                features_packed = features.masked_select(all_word_end_mask.to(torch.uint8).unsqueeze(-1)).reshape(-1, features.shape[-1])
+                features_packed = features.masked_select(all_word_end_mask.to(torch.bool).unsqueeze(-1)).reshape(-1, features.shape[-1])
 
                 # For now, just project the features from the last word piece in each word
                 extra_content_annotations = self.project_bert(features_packed)

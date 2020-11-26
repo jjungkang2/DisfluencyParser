@@ -32,8 +32,7 @@ This repository includes the code used for training a joint disfluency detection
 * Python 3.6 or higher.
 * Cython 0.25.2 or any compatible version.
 * [PyTorch](http://pytorch.org/) 0.4.1, 1.0/1.1, or any compatible version.
-* [EVALB](http://nlp.cs.nyu.edu/evalb/). Before starting, run `make` inside the `EVALB/` directory to compile an `evalb` executable. This will be called from Python for evaluation.
-* [AllenNLP](http://allennlp.org/) 0.7.0 or any compatible version (only required when using ELMo word representations)
+* [EVALB](http://nlp.cs.nyu.edu/evalb/). Before starting, run `make` inside the `EVALB/` directory to compile an `evalb` executable. This will be called from Python for evaluation.\
 * [pytorch-pretrained-bert](https://github.com/huggingface/pytorch-pretrained-BERT) 0.4.0 or any compatible version (only required when using BERT word representations)
 
 ### Preparation
@@ -43,19 +42,9 @@ $ cd joint-disfluency-detection-and-parsing/EVALB
 $ make evalb 
 $ cd .. 
 ```
-To use ELMo embeddings, follow the additional steps given below:
-```
-$ mkdir data && cd data
-$ wget https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_options.json
-$ wget https://s3-us-west-2.amazonaws.com/allennlp/models/elmo/2x4096_512_2048cnn_2xhighway/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5
-$ cd ..
-```
 ### Pretrained Models
 The following pre-trained models, which have been optimized for their performance on parsing EDITED nodes i.e. F(S_E) on the SWBD dev set, are available for download:
 * [`swbd_fisher_bert_Edev.0.9078.pt`](https://github.com/pariajm/joint-disfluency-detector-and-parser/releases/download/naacl2019/swbd_fisher_bert_Edev.0.9078.pt): Our best model self-trained on the Switchboard gold parse trees and Fisher silver parse trees with BERT-base-uncased word representations (EDITED word f-score=92.4%).
-* [`swbd_bert_Edev.0.8922.pt`](https://github.com/pariajm/joint-disfluency-detector-and-parser/releases/download/naacl2019/swbd_bert_Edev.0.8922.pt): Our best model trained on the Switchboard gold parse trees with BERT-base-uncased word representations (EDITED word f-score=90.9%).
-* [`swbd_elmo_tree_transformation_Edev.0.8838.pt`](https://github.com/pariajm/joint-disfluency-detector-and-parser/releases/download/naacl2019/swbd_elmo_tree_transformation_Edev.0.8838.pt): Our best model trained on the tree transformed Switchboard gold parse trees (as described in Section 4.4 [here](https://www.aclweb.org/anthology/N19-1282)) with ELMo word representations (EDITED word f-score=88.7%).
-* [`swbd_elmo_Edev.0.872.pt`](https://github.com/pariajm/joint-disfluency-detector-and-parser/releases/download/naacl2019/swbd_elmo_Edev.0.872.pt): Our best model trained on the Switchboard gold parse trees with ELMo word representations (EDITED word f-score=87.5%).
 
 ### Using the Trained Models for Parsing 
 Use the [pre-trained models](#pretrained-models) to find the constituency parse trees as well as disfluency labels for your own sentences. Before running the following commands, make sure to follow the steps in [Requirements for Training](#requirements-for-training) and [Preparation](#preparation) first. The format of the input in `best_models/raw_sentences.txt` is one sentence per line. For the best performance, remove punctuations and split clitics ("I 'm" instead of "I'm"). 
@@ -68,7 +57,7 @@ $ mkdir model && cd model
 $ wget https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased-vocab.txt
 $ wget https://s3.amazonaws.com/models.huggingface.co/bert/bert-base-uncased.tar.gz
 $ tar -xf bert-base-uncased.tar.gz && cd ..
-$ python3 src/main.py parse --input-path best_models/raw_sentences.txt --output-path best_models/parsed_sentences.txt --model-path-base best_models/swbd_fisher_bert_Edev.0.9078.pt >best_models/out.log
+$ python src/main.py parse --model-path-base best_models/swbd_fisher_bert_Edev.0.9078.pt >best_models/out.log
 ```
 ### Using the Trained Models for Disfluency Tagging
 If you want to use the trained models to disfluency label your own data, check [here](https://github.com/pariajm/fisher-annotations).
@@ -77,7 +66,7 @@ If you want to use the trained models to disfluency label your own data, check [
 First, obtain silver parse trees for your unlabelled data by running the commands given in [here](#using-the-trained-models-for-parsing). Then, you can train a new model on the enlarged training set (gold + silver parse trees) using the following command:
   
 ```
-$ python3 src/train_parser.py --config results/swbd_fisher_bert_config.json --eval-path results/eval.txt >results/out_and_error.txt
+$ python src/train_parser.py --config results/swbd_fisher_bert_config.json --eval-path results/eval.txt >results/out_and_error.txt
 ```
 
 ### Reproducing Experiments

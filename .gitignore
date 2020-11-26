@@ -1,5 +1,2 @@
-make-elmo.out
 mj-models
 EVALB/evalb
-data/elmo_2x4096_512_2048cnn_2xhighway_options.json
-data/elmo_2x4096_512_2048cnn_2xhighway_weights.hdf5
