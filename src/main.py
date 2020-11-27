@@ -84,18 +84,17 @@ def run_parse(args):
         dummy_tag = parser.tag_vocab.value(0)
 
     all_predicted = []
-    print(sentences)
     for index in range(0, len(sentences)):
         subbatch_sentences = sentences[index:index+1]
 
         subbatch_sentences = [[(dummy_tag, word) for word in sentence] for sentence in subbatch_sentences]
-        print(subbatch_sentences)
         predicted, _ = parser.parse_batch(subbatch_sentences)
         del _
         if args.output_path == '-':
             for p in predicted:
                 print(p.convert().linearize())
                 print(p.convert().linearize_clear())
+                print()
         else:
             all_predicted.extend([p.convert() for p in predicted])
 
