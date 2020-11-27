@@ -18,6 +18,14 @@ class InternalTreebankNode(TreebankNode):
         return "({} {})".format(
             self.label, " ".join(child.linearize() for child in self.children))
 
+    def linearize_clear(self):
+        if self.label=="EDITED" or self.label=="INTJ" or self.label=="PRN":
+            return ""
+        else:
+            child_sent = [child.linearize_clear() for child in self.children]
+            child_sent = list(filter(lambda sent: len(sent)>0, child_sent))
+            return " ".join(child_sent)
+
     def leaves(self):
         for child in self.children:
             yield from child.leaves()
@@ -48,6 +56,9 @@ class LeafTreebankNode(TreebankNode):
 
     def linearize(self):
         return "({} {})".format(self.tag, self.word)
+
+    def linearize_clear(self):
+        return "{}".format(self.word)
 
     def leaves(self):
         yield self
@@ -85,6 +96,7 @@ class InternalParseNode(ParseNode):
 
     def convert(self):
         children = [child.convert() for child in self.children]
+
         tree = InternalTreebankNode(self.label[-1], children)
         for sublabel in reversed(self.label[:-1]):
             tree = InternalTreebankNode(sublabel, [tree])

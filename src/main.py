@@ -1,7 +1,6 @@
 import argparse
 import itertools
 import os.path
-import time
 import sys
 import torch
 import torch.optim.lr_scheduler
@@ -9,7 +8,6 @@ import torch.optim.lr_scheduler
 import numpy as np
 import random
 
-import vocabulary
 import nkutil
 import parse_nk
 
@@ -26,7 +24,7 @@ def make_hparams():
 
         sentence_max_len=300,
 
-        learning_rate=0.0008,
+        learning_rate=0.00005,
         learning_rate_warmup_steps=160,
         clip_grad_norm=0., #no clipping
         step_decay=True,
@@ -37,7 +35,7 @@ def make_hparams():
         partitioned=True,
         num_layers_position_only=0,
 
-        num_layers=8,
+        num_layers=2,
         d_model=1024,
         num_heads=8,
         d_kv=64,
@@ -53,7 +51,7 @@ def make_hparams():
 
         use_tags=False,
         use_words=False,
-        use_bert=False,
+        use_bert=True,
         predict_tags=False,
 
         d_char_emb=32,
@@ -72,13 +70,9 @@ def make_hparams():
 #%%
 
 def run_parse(args):
-    
-    print("Loading model from {}...".format(args.model_path_base))
-
     info = torch_load(args.model_path_base)
     parser = parse_nk.NKChartParser.from_spec(info['spec'], info['state_dict'])
 
-    print("Parsing sentences...")
     with open(args.input_path) as input_file:
         sentences = input_file.readlines()
     sentences = [sentence.split() for sentence in sentences]
@@ -89,18 +83,19 @@ def run_parse(args):
     else:
         dummy_tag = parser.tag_vocab.value(0)
 
-    start_time = time.time()
-
     all_predicted = []
-    for start_index in range(0, len(sentences), args.eval_batch_size):
-        subbatch_sentences = sentences[start_index:start_index+args.eval_batch_size]
+    print(sentences)
+    for index in range(0, len(sentences)):
+        subbatch_sentences = sentences[index:index+1]
 
         subbatch_sentences = [[(dummy_tag, word) for word in sentence] for sentence in subbatch_sentences]
+        print(subbatch_sentences)
         predicted, _ = parser.parse_batch(subbatch_sentences)
         del _
         if args.output_path == '-':
             for p in predicted:
                 print(p.convert().linearize())
+                print(p.convert().linearize_clear())
         else:
             all_predicted.extend([p.convert() for p in predicted])
 
@@ -108,7 +103,6 @@ def run_parse(args):
         with open(args.output_path, 'w') as output_file:
             for tree in all_predicted:
                 output_file.write("{}\n".format(tree.linearize()))
-        print("Output written to:", args.output_path)
 #%%
 
 def main():
@@ -116,12 +110,12 @@ def main():
     subparsers = parser.add_subparsers()
 
     hparams = make_hparams()
-    subparser = subparsers.add_parser("parse")
-    subparser.set_defaults(callback=run_parse)
-    subparser.add_argument("--model-path-base", default="best_models/swbd_fisher_bert_Edev.0.9078.pt")
-    subparser.add_argument("--input-path", default="best_models/raw_sentences.txt")
-    subparser.add_argument("--output-path", default="best_models/parsed_sentences.txt")
-    subparser.add_argument("--eval-batch-size", type=int, default=100)
+    parser.set_defaults(callback=run_parse)
+    parser.add_argument("--model-path-base", default="best_models/swbd_fisher_bert_Edev.0.9078.pt")
+    parser.add_argument("--input-path", default="best_models/raw_sentences.txt")
+    # parser.add_argument("--output-path", default="best_models/parsed_sentences.txt")    
+    parser.add_argument("--output-path", default="-")
+    parser.add_argument("--eval-batch-size", type=int, default=100)
 
     args = parser.parse_args()
     args.callback(args)

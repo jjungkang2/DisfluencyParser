@@ -56,7 +56,7 @@ BERT_TOKEN_MAPPING = {
     "\u2014": "--", # em dash
     }
 
-# %%
+#%%
 
 class BatchIndices:
     """
@@ -105,6 +105,7 @@ class FeatureDropoutFunction(torch.autograd.function.InplaceFunction):
 
         return output
 
+    # 안나오긴 함,,
     @staticmethod
     def backward(ctx, grad_output):
         if ctx.p > 0 and ctx.train:
@@ -354,41 +355,6 @@ class MultiHeadAttention(nn.Module):
         outputs = self.residual_dropout(outputs, batch_idxs)
         
         return self.layer_norm(outputs + residual), attns_padded
-
-# %%
-
-class PositionwiseFeedForward(nn.Module):
-    """
-    A position-wise feed forward module.
-
-    Projects to a higher-dimensional space before applying ReLU, then projects
-    back.
-    """
-
-    def __init__(self, d_hid, d_ff, relu_dropout=0.1, residual_dropout=0.1):
-        super(PositionwiseFeedForward, self).__init__()
-        self.w_1 = nn.Linear(d_hid, d_ff)
-        self.w_2 = nn.Linear(d_ff, d_hid)
-
-        self.layer_norm = LayerNormalization(d_hid)
-        # The t2t code on github uses relu dropout, even though the transformer
-        # paper describes residual dropout only. We implement relu dropout
-        # because we always have the option to set it to zero.
-        self.relu_dropout = FeatureDropout(relu_dropout)
-        self.residual_dropout = FeatureDropout(residual_dropout)
-        self.relu = nn.ReLU()
-
-
-    def forward(self, x, batch_idxs):
-        residual = x
-
-        output = self.w_1(x)
-        output = self.relu_dropout(self.relu(output), batch_idxs)
-        output = self.w_2(output)
-
-        output = self.residual_dropout(output, batch_idxs)
-        return self.layer_norm(output + residual)
-
 # %%
 
 class PartitionedPositionwiseFeedForward(nn.Module):
@@ -509,52 +475,6 @@ class MultiLevelEmbedding(nn.Module):
         return annotations, timing_signal, batch_idxs
 
 # %%
-
-class CharacterLSTM(nn.Module):
-    def __init__(self, num_embeddings, d_embedding, d_out,
-            char_dropout=0.0,
-            normalize=False,
-            **kwargs):
-        super().__init__()
-
-        self.d_embedding = d_embedding
-        self.d_out = d_out
-
-        self.lstm = nn.LSTM(self.d_embedding, self.d_out // 2, num_layers=1, bidirectional=True)
-
-        self.emb = nn.Embedding(num_embeddings, self.d_embedding, **kwargs)
-        #TODO(nikita): feature-level dropout?
-        self.char_dropout = nn.Dropout(char_dropout)
-
-        if normalize:
-            self.layer_norm = LayerNormalization(self.d_out, affine=False)
-        else:
-            self.layer_norm = lambda x: x
-
-    def forward(self, chars_padded_np, word_lens_np, batch_idxs):
-        # copy to ensure nonnegative stride for successful transfer to pytorch
-        decreasing_idxs_np = np.argsort(word_lens_np)[::-1].copy()
-        decreasing_idxs_torch = from_numpy(decreasing_idxs_np)
-
-        chars_padded = from_numpy(chars_padded_np[decreasing_idxs_np])
-        word_lens = from_numpy(word_lens_np[decreasing_idxs_np])
-
-        inp_sorted = nn.utils.rnn.pack_padded_sequence(chars_padded, word_lens_np[decreasing_idxs_np], batch_first=True)
-        inp_sorted_emb = nn.utils.rnn.PackedSequence(
-            self.char_dropout(self.emb(inp_sorted.data)),
-            inp_sorted.batch_sizes)
-        _, (lstm_out, _) = self.lstm(inp_sorted_emb)
-
-        lstm_out = torch.cat([lstm_out[0], lstm_out[1]], -1)
-
-        # Undo sorting by decreasing word length
-        res = torch.zeros_like(lstm_out)
-        res.index_copy_(0, decreasing_idxs_torch, lstm_out)
-
-        res = self.layer_norm(res)
-        return res
-
-# %%
 def get_bert(bert_model, bert_do_lower_case):
     # Avoid a hard dependency on BERT by only importing it if it's being used
     from pytorch_pretrained_bert import BertTokenizer, BertModel
@@ -584,10 +504,7 @@ class Encoder(nn.Module):
         self.stacks = []
         for i in range(num_layers):
             attn = MultiHeadAttention(num_heads, d_model, d_k, d_v, residual_dropout=residual_dropout, attention_dropout=attention_dropout, d_positional=d_positional)
-            if d_positional is None:
-                ff = PositionwiseFeedForward(d_model, d_ff, relu_dropout=relu_dropout, residual_dropout=residual_dropout)
-            else:
-                ff = PartitionedPositionwiseFeedForward(d_model, d_ff, d_positional, relu_dropout=relu_dropout, residual_dropout=residual_dropout)
+            ff = PartitionedPositionwiseFeedForward(d_model, d_ff, d_positional, relu_dropout=relu_dropout, residual_dropout=residual_dropout)
 
             self.add_module(f"attn_{i}", attn)
             self.add_module(f"ff_{i}", ff)
@@ -725,10 +642,6 @@ class NKChartParser(nn.Module):
         if use_cuda:
             self.cuda()
 
-    @property
-    def model(self):
-        return self.state_dict()
-
     @classmethod
     def from_spec(cls, spec, model):
         spec = spec.copy()
@@ -754,29 +667,6 @@ class NKChartParser(nn.Module):
         if use_cuda:
             res.cuda()
         return res
-
-    def split_batch(self, sentences, golds, subbatch_max_tokens=3000):
-        if self.bert is not None:
-            lens = [
-                len(self.bert_tokenizer.tokenize(' '.join([word for (_, word) in sentence]))) + 2
-                for sentence in sentences
-            ]
-        else:
-            lens = [len(sentence) + 2 for sentence in sentences]
-
-        lens = np.asarray(lens, dtype=int)
-        lens_argsort = np.argsort(lens).tolist()
-
-        num_subbatches = 0
-        subbatch_size = 1
-        while lens_argsort:
-            if (subbatch_size == len(lens_argsort)) or (subbatch_size * lens[lens_argsort[subbatch_size]] > subbatch_max_tokens):
-                yield [sentences[i] for i in lens_argsort[:subbatch_size]], [golds[i] for i in lens_argsort[:subbatch_size]]
-                lens_argsort = lens_argsort[subbatch_size:]
-                num_subbatches += 1
-                subbatch_size = 1
-            else:
-                subbatch_size += 1
 
     def parse(self, sentence, gold=None):
         tree_list, loss_list = self.parse_batch([sentence], [gold] if gold is not None else None)
@@ -1025,34 +915,10 @@ class NKChartParser(nn.Module):
         return label_scores_chart
 
     def parse_from_annotations(self, fencepost_annotations_start, fencepost_annotations_end, sentence, gold=None):
-        is_train = gold is not None
         label_scores_chart = self.label_scores_from_annotations(fencepost_annotations_start, fencepost_annotations_end)
         label_scores_chart_np = label_scores_chart.cpu().data.numpy()
 
-        if is_train:
-            decoder_args = dict(
-                sentence_len=len(sentence),
-                label_scores_chart=label_scores_chart_np,
-                gold=gold,
-                label_vocab=self.label_vocab,
-                is_train=is_train)
-
-            p_score, p_i, p_j, p_label, p_augment = chart_helper.decode(False, **decoder_args)
-            g_score, g_i, g_j, g_label, g_augment = chart_helper.decode(True, **decoder_args)
-            return p_i, p_j, p_label, p_augment, g_i, g_j, g_label
-        else:
-            return self.decode_from_chart(sentence, label_scores_chart_np)
-
-    def decode_from_chart_batch(self, sentences, charts_np, golds=None):
-        trees = []
-        scores = []
-        if golds is None:
-            golds = [None] * len(sentences)
-        for sentence, chart_np, gold in zip(sentences, charts_np, golds):
-            tree, score = self.decode_from_chart(sentence, chart_np, gold)
-            trees.append(tree)
-            scores.append(score)
-        return trees, scores
+        return self.decode_from_chart(sentence, label_scores_chart_np)
 
     def decode_from_chart(self, sentence, chart_np, gold=None):
         decoder_args = dict(
@@ -1070,6 +936,7 @@ class NKChartParser(nn.Module):
         score, p_i, p_j, p_label, _ = chart_helper.decode(force_gold, **decoder_args)
         last_splits = []
         idx = -1
+        
         def make_tree():
             nonlocal idx
             idx += 1
