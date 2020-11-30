@@ -73,7 +73,7 @@ def run_parse(args):
     info = torch_load(args.model_path_base)
     parser = parse_nk.NKChartParser.from_spec(info['spec'], info['state_dict'])
 
-    with open(args.input_path) as input_file:
+    with open(args.input_path, encoding="UTF8") as input_file:
         sentences = input_file.readlines()
     sentences = [sentence.split() for sentence in sentences]
 
@@ -92,6 +92,7 @@ def run_parse(args):
         del _
         if args.output_path == '-':
             for p in predicted:
+                
                 print(p.convert().linearize())
                 print(p.convert().linearize_clear())
                 print()
